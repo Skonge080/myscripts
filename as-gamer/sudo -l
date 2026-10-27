@@ -1,0 +1,20 @@
+Matching Defaults entries for igor on skonge-pc:
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/bin
+
+Runas and Command-specific defaults for igor:
+    Defaults!/usr/bin/visudo env_keep+="SUDO_EDITOR EDITOR VISUAL"
+
+User igor may run the following commands on skonge-pc:
+    (ALL) ALL
+    (root) NOPASSWD: /usr/bin/mkdir -p /run/user/*, /usr/bin/chown gamer\:gamer
+        /run/user/*, /usr/bin/chmod 0700 /run/user/*, /usr/bin/rm -f /run/user/*/*,
+        /usr/bin/umount /run/user/*/*, /usr/bin/mount --bind /run/user/*/* /run/user/*/*
+    (gamer) NOPASSWD: /usr/bin/touch /run/user/*/*, /usr/bin/mkdir -p /run/user/*/pulse,
+        /usr/bin/env HOME\=/home/gamer DISPLAY\=* WAYLAND_DISPLAY\=*
+        XDG_RUNTIME_DIR\=/run/user/* PULSE_SERVER\=unix\:/run/user/*/pulse/native
+        DBUS_SESSION_BUS_ADDRESS\=unix\:path\=/run/user/*/bus SDL_AUDIODRIVER\=pipewire *
+    (gamer) NOPASSWD: ALL
+    (ALL) NOPASSWD: /usr/bin/mkdir -p /run/user/1001, /usr/bin/chown gamer\:gamer
+        /run/user/1001, /usr/bin/chmod 0700 /run/user/1001, /usr/bin/mountpoint -q *,
+        /usr/bin/rm -f /run/user/1001/*, /usr/bin/touch /run/user/1001/*, /usr/bin/mount
+        --bind *

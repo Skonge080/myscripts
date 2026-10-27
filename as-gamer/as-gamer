@@ -1,0 +1,75 @@
+#!/bin/bash
+
+GUEST="gamer"
+
+if [ "$(id -un)" = "$GUEST" ]; then
+    exec "$@"
+fi
+
+GUEST_UID=$(id -u "$GUEST")
+GUEST_XDG="/run/user/$GUEST_UID"
+HOST_XDG="$XDG_RUNTIME_DIR"
+
+if [ $# -eq 0 ]; then
+    echo "Использование: as-gamer <команда> [аргументы]"
+    exit 1
+fi
+
+# 1. Надежно создаем папку гостя от имени root (если systemd этого не сделал)
+if [ ! -d "$GUEST_XDG" ]; then
+    sudo mkdir -p "$GUEST_XDG"
+    sudo chown "$GUEST:$GUEST" "$GUEST_XDG"
+    sudo chmod 0700 "$GUEST_XDG"
+fi
+
+# 2. Права на X11
+xhost +SI:localuser:$GUEST > /dev/null 2>&1
+
+# Функция для безопасного и умного создания bind-mount
+setup_bind() {
+    local src_file="$1"
+    local dst_file="$2"
+
+    if [ -S "$src_file" ]; then
+        # Всегда обновляем ACL-права, так как systemd любит их затирать со временем
+        setfacl -m u:$GUEST:rw "$src_file" 2>/dev/null
+
+        # 1. Тихо размонтируем, если сокет уже был примонтирован ранее
+        sudo umount "$dst_file" 2>/dev/null
+        
+        # 2. Удаляем старые симлинки или мусорные файлы с прошлых запусков
+        sudo rm -f "$dst_file" 2>/dev/null
+        
+        # 3. Создаем пустой файл от имени гостя (подготовительная площадка)
+        sudo -u "$GUEST" touch "$dst_file"
+        
+        # 4. Монтируем свежий хостовый сокет в гостевой файл
+        sudo mount --bind "$src_file" "$dst_file"
+    fi
+}
+
+# -- Wayland --
+if [ -n "$WAYLAND_DISPLAY" ]; then
+    setup_bind "$HOST_XDG/$WAYLAND_DISPLAY" "$GUEST_XDG/$WAYLAND_DISPLAY"
+fi
+
+# -- PipeWire --
+setup_bind "$HOST_XDG/pipewire-0" "$GUEST_XDG/pipewire-0"
+
+# -- PulseAudio --
+if [ -S "$HOST_XDG/pulse/native" ]; then
+    setfacl -m u:$GUEST:x "$HOST_XDG/pulse" 2>/dev/null
+    sudo -u "$GUEST" mkdir -p "$GUEST_XDG/pulse"
+    setup_bind "$HOST_XDG/pulse/native" "$GUEST_XDG/pulse/native"
+fi
+
+# 3. Запуск
+exec sudo -u "$GUEST" env \
+    HOME="/home/$GUEST" \
+    DISPLAY="$DISPLAY" \
+    WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
+    XDG_RUNTIME_DIR="$GUEST_XDG" \
+    PULSE_SERVER="unix:$GUEST_XDG/pulse/native" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$GUEST_XDG/bus" \
+    SDL_AUDIODRIVER="pipewire" \
+    "$@"
